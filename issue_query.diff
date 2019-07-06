@@ -1,0 +1,75 @@
+--- issue_query.rb	2019-07-02 18:25:40.000000000 +0000
++++ issues_query_work_v3.rb	2019-07-06 19:54:48.000000000 +0000
+@@ -50,6 +50,26 @@
+     QueryColumn.new(:last_notes, :caption => :label_last_notes, :inline => false)
+   ]
+ 
++  def int_statement
++    if statement && @VISIBLE_ALL_CHILD == 1
++
++      is = "(#{Issue.table_name}.id in (" +
++        " SELECT insubtasks.id FROM #{Issue.table_name}" +
++        " LEFT JOIN #{Issue.table_name} insubtasks on insubtasks.root_id=#{Issue.table_name}.root_id" +
++        " WHERE (#{statement})" +
++        " AND insubtasks.lft >= #{Issue.table_name}.lft AND insubtasks.rgt <= #{Issue.table_name}.rgt"+
++        "))"
++
++#      is = "((#{Issue.table_name}.id in (Select #{Issue.table_name}.id from #{Issue.table_name} where #{statement})) OR " +
++#             "(#{Issue.table_name}.parent_id in (Select #{Issue.table_name}.id from #{Issue.table_name} where #{statement})) OR " +
++#             "(#{Issue.table_name}.root_id in (Select #{Issue.table_name}.id from #{Issue.table_name} where #{statement})))"
++    else 
++      is = statement
++    end
++    @VISIBLE_ALL_CHILD = 0
++    is
++  end
++
+   def initialize(attributes=nil, *args)
+     super attributes
+     self.filters ||= { 'status_id' => {:operator => "o", :values => [""]} }
+@@ -251,7 +271,7 @@
+   end
+ 
+   def base_scope
+-    Issue.visible.joins(:status, :project).where(statement)
++    Issue.visible.joins(:status, :project).where(int_statement)
+   end
+ 
+   # Returns the issue count
+@@ -283,7 +303,7 @@
+     scope = Issue.visible.
+       joins(:status, :project).
+       preload(:priority).
+-      where(statement).
++      where(int_statement).
+       includes(([:status, :project] + (options[:include] || [])).uniq).
+       where(options[:conditions]).
+       order(order_option).
+@@ -324,7 +344,7 @@
+ 
+     Issue.visible.
+       joins(:status, :project).
+-      where(statement).
++      where(int_statement).
+       includes(([:status, :project] + (options[:include] || [])).uniq).
+       references(([:status, :project] + (options[:include] || [])).uniq).
+       where(options[:conditions]).
+@@ -342,7 +362,7 @@
+   def journals(options={})
+     Journal.visible.
+       joins(:issue => [:project, :status]).
+-      where(statement).
++      where(int_statement).
+       order(options[:order]).
+       limit(options[:limit]).
+       offset(options[:offset]).
+@@ -520,7 +540,8 @@
+     when "!*"
+       "#{Issue.table_name}.rgt - #{Issue.table_name}.lft = 1"
+     when "*"
+-      "#{Issue.table_name}.rgt - #{Issue.table_name}.lft > 1"
++      #"#{Issue.table_name}.rgt - #{Issue.table_name}.lft > 1"
++      @VISIBLE_ALL_CHILD = 1
+     end
+   end
+ 
